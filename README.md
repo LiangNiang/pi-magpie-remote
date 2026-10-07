@@ -29,10 +29,6 @@ pi -e ./pi-magpie-remote
 
 模型会以 `magpie-remote/<Magpie 模型 ID>` 的形式显示。选择模型后即可像平常一样发送提示。
 
-手动重新获取模型列表：
+每次打开 `/model`（以及 pi 启动时）都会自动向远端重新拉取模型列表；远端连不上时使用 `auth.json` 中的快照。
 
-```text
-/magpie-sync
-```
-
-如果登录失败，请检查地址、网络连接、Magpie 的局域网共享设置以及 gateway key 是否有效。即使模型列表为空，登录仍会成功；之后可以通过 `/magpie-sync` 再次获取。
+如果登录失败，请检查地址、网络连接、Magpie 的局域网共享设置以及 gateway key 是否有效。即使模型列表为空，登录仍会成功；远端加了模型后重新打开 `/model` 即可看到。

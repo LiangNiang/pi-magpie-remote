@@ -15,21 +15,4 @@ export default function (pi: ExtensionAPI): void {
 			getApiKey: (credentials) => credentials.access,
 		},
 	});
-
-	pi.registerCommand("magpie-sync", {
-		description: "Re-fetch the remote magpie model list",
-		handler: async (_args, context) => {
-			const result = await context.modelRegistry.refresh({
-				providers: ["magpie-remote"],
-				allowNetwork: true,
-				force: true,
-			});
-			if (result.errors.size > 0) {
-				context.ui.notify([...result.errors.values()].map((error) => error.message).join("\n"), "error");
-				return;
-			}
-			const count = context.modelRegistry.getAll().filter((model) => model.provider === "magpie-remote").length;
-			context.ui.notify(`Loaded ${count} Magpie models`, "info");
-		},
-	});
 }
