@@ -4,15 +4,15 @@
 
 ## 安装
 
-```sh
-pi install npm:pi-magpie-remote
-```
-
-本地试用：
+尚未发布到 npm。解压后在本地目录安装依赖再加载：
 
 ```sh
-pi -e /home/ubuntu/repos/pi-magpie-remote
+cd pi-magpie-remote && npm install --ignore-scripts
+pi install ./pi-magpie-remote      # 长期安装
+# 或临时试用：pi -e ./pi-magpie-remote
 ```
+
+推到自己的 Git 仓库后也可以 `pi install git:github.com/<you>/pi-magpie-remote`。
 
 ## 配置 Magpie
 
