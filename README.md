@@ -12,7 +12,7 @@ pi install ./pi-magpie-remote      # 长期安装
 # 或临时试用：pi -e ./pi-magpie-remote
 ```
 
-推到自己的 Git 仓库后也可以 `pi install git:github.com/<you>/pi-magpie-remote`。
+也可以直接从 GitHub 安装：`pi install git:github.com/LiangNiang/pi-magpie-remote`（安装后需在包目录执行 `npm install --ignore-scripts`，若 pi 未自动安装依赖）。
 
 ## 配置 Magpie
 
