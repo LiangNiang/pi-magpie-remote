@@ -1,0 +1,24 @@
+{
+  "name": "pi-magpie-remote",
+  "version": "1.0.0",
+  "description": "Connect Pi to a remote Magpie gateway",
+  "type": "module",
+  "keywords": ["pi-package"],
+  "pi": {
+    "extensions": ["./index.ts"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "1.0.4",
+    "@earendil-works/pi-coding-agent": "1.0.4",
+    "@types/node": "26.6.4",
+    "typescript": "7.0.2"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node --test test/*.test.ts"
+  }
+}
