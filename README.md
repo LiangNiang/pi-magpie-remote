@@ -4,15 +4,16 @@
 
 ## 安装
 
-尚未发布到 npm。解压后在本地目录安装依赖再加载：
-
 ```sh
-cd pi-magpie-remote && npm install --ignore-scripts
-pi install ./pi-magpie-remote      # 长期安装
-# 或临时试用：pi -e ./pi-magpie-remote
+pi install git:github.com/LiangNiang/pi-magpie-remote
 ```
 
-也可以直接从 GitHub 安装：`pi install git:github.com/LiangNiang/pi-magpie-remote`（安装后需在包目录执行 `npm install --ignore-scripts`，若 pi 未自动安装依赖）。
+插件只有类型导入，运行时没有额外依赖。本地试用：
+
+```sh
+git clone https://github.com/LiangNiang/pi-magpie-remote
+pi -e ./pi-magpie-remote
+```
 
 ## 配置 Magpie
 
