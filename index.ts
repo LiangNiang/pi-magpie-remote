@@ -42,9 +42,14 @@ export default function (pi: ExtensionAPI): void {
 			const quotas = await fetchMagpieQuotas(normalizeMagpieUrl(model.baseUrl), key, AbortSignal.timeout(20_000));
 			cached = { at: Date.now(), quotas };
 			return quotas;
-		})().finally(() => {
-			pending = undefined;
-		});
+		})()
+			.catch((error: unknown) => {
+				cached = undefined;
+				throw error;
+			})
+			.finally(() => {
+				pending = undefined;
+			});
 		return pending;
 	}
 
@@ -85,6 +90,7 @@ export default function (pi: ExtensionAPI): void {
 			try {
 				quotas = await loadQuotas(ctx, true);
 			} catch (error) {
+				if (ctx.hasUI) ctx.ui.setStatus(STATUS_KEY, undefined);
 				ctx.ui.notify(`Magpie quota: ${error instanceof Error ? error.message : String(error)}`, "error");
 				return;
 			}
