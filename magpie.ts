@@ -209,15 +209,3 @@ export async function refreshMagpieModels(context: CatalogContext): Promise<Magp
 	}
 	return mapMagpieCatalog(credential.models, root);
 }
-
-/**
- * pi sends Anthropic-style keys only as x-api-key, which a proxy in front of magpie may not accept,
- * so /v1/messages models also carry the gateway key as a Bearer header. pi ignores headers on
- * refreshed models, hence this runs as the OAuth model projection.
- */
-export function withGatewayBearer<T extends { api?: string; headers?: Record<string, string> }>(models: T[], key: string): T[] {
-	if (!key) return models;
-	return models.map((m) =>
-		m.api === "anthropic-messages" ? { ...m, headers: { ...m.headers, Authorization: `Bearer ${key}` } } : m,
-	);
-}
