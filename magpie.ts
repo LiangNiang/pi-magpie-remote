@@ -98,7 +98,7 @@ function thinkingLevelMap(levels: string[], anthropicClaude: boolean): MagpieCha
 	return map;
 }
 
-export function mapMagpieEntry(entry: MagpieEntry, root: string, key = ""): MagpieChatModel {
+export function mapMagpieEntry(entry: MagpieEntry, root: string): MagpieChatModel {
 	const id = entry.id;
 	const nativeEndpoints = stringArray(entry.native_endpoints);
 	const api = nativeEndpoints.includes("/v1/responses")
@@ -129,8 +129,6 @@ export function mapMagpieEntry(entry: MagpieEntry, root: string, key = ""): Magp
 		contextWindow,
 		maxTokens,
 	};
-	// pi sends Anthropic keys as x-api-key only; a proxy in front of magpie may accept just the Bearer header.
-	if (api === "anthropic-messages" && key) model.headers = { Authorization: `Bearer ${key}` };
 	const levelMap = thinkingLevelMap(levels, api === "anthropic-messages" && CLAUDE_FAMILY.test(finalId));
 	if (levelMap) model.thinkingLevelMap = levelMap;
 	if (api === "anthropic-messages" && claudeVersionAtLeast46(id)) {
@@ -144,7 +142,7 @@ export function mapMagpieEntry(entry: MagpieEntry, root: string, key = ""): Magp
 	return model;
 }
 
-export function mapMagpieCatalog(entries: unknown, root: string, key = ""): MagpieChatModel[] {
+export function mapMagpieCatalog(entries: unknown, root: string): MagpieChatModel[] {
 	if (!Array.isArray(entries)) return [];
 	return entries.flatMap((entry) => {
 		if (
@@ -155,7 +153,7 @@ export function mapMagpieCatalog(entries: unknown, root: string, key = ""): Magp
 		) {
 			return [];
 		}
-		return [mapMagpieEntry(entry as MagpieEntry, root, key)];
+		return [mapMagpieEntry(entry as MagpieEntry, root)];
 	});
 }
 
@@ -206,8 +204,20 @@ export async function refreshMagpieModels(context: CatalogContext): Promise<Magp
 	if (context.allowNetwork && !context.signal.aborted && typeof credential.access === "string") {
 		try {
 			const entries = await fetchMagpieCatalog(root, credential.access, context.signal);
-			return mapMagpieCatalog(entries, root, credential.access);
+			return mapMagpieCatalog(entries, root);
 		} catch {}
 	}
-	return mapMagpieCatalog(credential.models, root, typeof credential.access === "string" ? credential.access : "");
+	return mapMagpieCatalog(credential.models, root);
+}
+
+/**
+ * pi sends Anthropic-style keys only as x-api-key, which a proxy in front of magpie may not accept,
+ * so /v1/messages models also carry the gateway key as a Bearer header. pi ignores headers on
+ * refreshed models, hence this runs as the OAuth model projection.
+ */
+export function withGatewayBearer<T extends { api?: string; headers?: Record<string, string> }>(models: T[], key: string): T[] {
+	if (!key) return models;
+	return models.map((m) =>
+		m.api === "anthropic-messages" ? { ...m, headers: { ...m.headers, Authorization: `Bearer ${key}` } } : m,
+	);
 }

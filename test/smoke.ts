@@ -1,7 +1,7 @@
 // Read-only smoke test against a real Magpie gateway: `MAGPIE_URL=… MAGPIE_GATEWAY_KEY=… npm run smoke`.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fetchMagpieCatalog, mapMagpieCatalog, normalizeMagpieUrl } from "../magpie.ts";
+import { fetchMagpieCatalog, mapMagpieCatalog, normalizeMagpieUrl, withGatewayBearer } from "../magpie.ts";
 import { fetchMagpieQuotas, formatQuotaReport, formatQuotaStatus, quotaProviderOf, quotasForModel } from "../quota.ts";
 
 const url = process.env.MAGPIE_URL;
@@ -18,7 +18,7 @@ test("remote magpie lists chat models", { skip }, async () => {
 
 test("remote magpie accepts pi's auth on every chat API, without spending tokens", { skip }, async () => {
 	const root = normalizeMagpieUrl(url!);
-	const models = mapMagpieCatalog(await fetchMagpieCatalog(root, key, AbortSignal.timeout(20_000)), root, key);
+	const models = withGatewayBearer(mapMagpieCatalog(await fetchMagpieCatalog(root, key, AbortSignal.timeout(20_000)), root), key);
 	for (const api of new Set(models.map((m) => m.api))) {
 		const model = models.find((m) => m.api === api)!;
 		const path = api === "anthropic-messages" ? "/v1/messages" : api === "openai-responses" ? "/responses" : "/chat/completions";
