@@ -45,3 +45,13 @@ pi -e ./pi-magpie-remote
 ```
 
 输出内容与 Magpie 机器上 `magpie quota` 的结果一致：每个订阅、套餐的各窗口用量和重置时间（↻），以及各 key 的余额。数据来自网关的 `GET /v1/magpie/quotas`，使用 `/login` 时保存的地址和 gateway key，因此同样需要开启局域网共享。
+
+## 冒烟测试
+
+对正在使用的 Magpie 做只读检查（拉取模型列表和额度，不发起对话）：
+
+```sh
+MAGPIE_URL=http://192.168.1.10:3425 MAGPIE_GATEWAY_KEY=sk-magpie-... npm run smoke
+```
+
+未设置 `MAGPIE_URL` 时测试会跳过。

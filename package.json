@@ -19,6 +19,7 @@
   },
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "node --test test/*.test.ts"
+    "test": "node --test test/*.test.ts",
+    "smoke": "node --test test/smoke.ts"
   }
 }

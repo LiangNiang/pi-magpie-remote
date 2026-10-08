@@ -102,7 +102,11 @@ export function quotasForModel(quotas: readonly MagpieQuota[], modelId: string):
 		.sort((a, b) => Number(b.last === true) - Number(a.last === true));
 }
 
+const PERIODS: Record<string, string> = { hourly: "1h", daily: "1d", weekly: "1w", monthly: "1mo" };
+
 export function shortWindowName(name: string): string {
+	const period = PERIODS[name.trim().toLowerCase()];
+	if (period) return period;
 	const match = /^(\d+)\s*(hour|day|week|month|minute)s?$/i.exec(name.trim());
 	if (!match) return name;
 	const unit = match[2]!.toLowerCase();
@@ -134,13 +138,19 @@ export function mostUsed(quota: MagpieQuota): number | undefined {
 	return used.length > 0 ? Math.max(...used) : undefined;
 }
 
-/** One quota in a few words for the footer: "codex 5h 32% · 7d 71%", "deepseek ¥12.30". */
+/**
+ * One quota in a few words for the footer: "codex 5h 32% · 7d 71%", "deepseek ¥12.30".
+ * At most two windows are shown, always including the most used one.
+ */
 export function formatQuotaStatus(quota: MagpieQuota): string {
-	const parts = quota.windows
-		.filter((w) => !w.unlimited)
-		.map((w) => `${shortWindowName(w.name)} ${percent(w.used)}`);
+	const limited = quota.windows.filter((w) => !w.unlimited);
+	let shown = limited.slice(0, 2);
+	const top = limited.reduce<MagpieQuotaWindow | undefined>((a, w) => (a && a.used >= w.used ? a : w), undefined);
+	if (top && !shown.includes(top)) shown = [shown[0]!, top];
+	const parts = shown.map((w) => `${shortWindowName(w.name)} ${percent(w.used)}`);
 	if (quota.balance) parts.push(quota.balance);
-	if (parts.length === 0) parts.push(quota.error ? "unavailable" : quota.windows.length > 0 ? "unlimited" : "—");
+	if (parts.length === 0)
+		parts.push(quota.error ? "unavailable" : quota.windows.length > 0 ? "unlimited" : (quota.plan ?? "—"));
 	return `${quota.provider} ${parts.join(" · ")}`;
 }
 

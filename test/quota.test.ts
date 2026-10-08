@@ -103,8 +103,25 @@ test("formats footer status", () => {
 	assert.equal(formatQuotaStatus(kimi!), "kimi unavailable");
 	assert.equal(mostUsed(codex!), 71);
 	assert.equal(mostUsed(deepseek!), undefined);
-	assert.equal(shortWindowName("Monthly"), "Monthly");
+	assert.equal(shortWindowName("Monthly"), "1mo");
+	assert.equal(shortWindowName("Weekly"), "1w");
+	assert.equal(shortWindowName("GLM-5.3-Trial"), "GLM-5.3-Trial");
 	assert.equal(shortWindowName("1 week"), "1w");
+});
+
+test("keeps the footer to two windows, including the most used, and falls back to the plan", () => {
+	const window = (name: string, used: number) => ({ name, used });
+	const base = { provider: "zcode", name: "Z", kind: "subscription" };
+	assert.equal(
+		formatQuotaStatus({ ...base, windows: [window("5 hours", 28), window("Weekly", 38), window("GLM-Trial", 0)] }),
+		"zcode 5h 28% · 1w 38%",
+	);
+	assert.equal(
+		formatQuotaStatus({ ...base, windows: [window("5 hours", 10), window("Weekly", 20), window("GLM-Trial", 95)] }),
+		"zcode 5h 10% · GLM-Trial 95%",
+	);
+	assert.equal(formatQuotaStatus({ ...base, plan: "Free", windows: [] }), "zcode Free");
+	assert.equal(formatQuotaStatus({ ...base, windows: [] }), "zcode —");
 });
 
 test("formats reset times like magpie", () => {
