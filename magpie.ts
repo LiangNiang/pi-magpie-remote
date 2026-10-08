@@ -98,7 +98,7 @@ function thinkingLevelMap(levels: string[], anthropicClaude: boolean): MagpieCha
 	return map;
 }
 
-export function mapMagpieEntry(entry: MagpieEntry, root: string): MagpieChatModel {
+export function mapMagpieEntry(entry: MagpieEntry, root: string, key = ""): MagpieChatModel {
 	const id = entry.id;
 	const nativeEndpoints = stringArray(entry.native_endpoints);
 	const api = nativeEndpoints.includes("/v1/responses")
@@ -129,6 +129,8 @@ export function mapMagpieEntry(entry: MagpieEntry, root: string): MagpieChatMode
 		contextWindow,
 		maxTokens,
 	};
+	// pi sends Anthropic keys as x-api-key only; a proxy in front of magpie may accept just the Bearer header.
+	if (api === "anthropic-messages" && key) model.headers = { Authorization: `Bearer ${key}` };
 	const levelMap = thinkingLevelMap(levels, api === "anthropic-messages" && CLAUDE_FAMILY.test(finalId));
 	if (levelMap) model.thinkingLevelMap = levelMap;
 	if (api === "anthropic-messages" && claudeVersionAtLeast46(id)) {
@@ -142,7 +144,7 @@ export function mapMagpieEntry(entry: MagpieEntry, root: string): MagpieChatMode
 	return model;
 }
 
-export function mapMagpieCatalog(entries: unknown, root: string): MagpieChatModel[] {
+export function mapMagpieCatalog(entries: unknown, root: string, key = ""): MagpieChatModel[] {
 	if (!Array.isArray(entries)) return [];
 	return entries.flatMap((entry) => {
 		if (
@@ -153,7 +155,7 @@ export function mapMagpieCatalog(entries: unknown, root: string): MagpieChatMode
 		) {
 			return [];
 		}
-		return [mapMagpieEntry(entry as MagpieEntry, root)];
+		return [mapMagpieEntry(entry as MagpieEntry, root, key)];
 	});
 }
 
@@ -204,8 +206,8 @@ export async function refreshMagpieModels(context: CatalogContext): Promise<Magp
 	if (context.allowNetwork && !context.signal.aborted && typeof credential.access === "string") {
 		try {
 			const entries = await fetchMagpieCatalog(root, credential.access, context.signal);
-			return mapMagpieCatalog(entries, root);
+			return mapMagpieCatalog(entries, root, credential.access);
 		} catch {}
 	}
-	return mapMagpieCatalog(credential.models, root);
+	return mapMagpieCatalog(credential.models, root, typeof credential.access === "string" ? credential.access : "");
 }

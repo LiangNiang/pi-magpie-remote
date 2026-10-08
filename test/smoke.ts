@@ -16,6 +16,26 @@ test("remote magpie lists chat models", { skip }, async () => {
 	console.log(`${models.length} chat models from ${new Set(models.map((m) => quotaProviderOf(m.id))).size} providers`);
 });
 
+test("remote magpie accepts pi's auth on every chat API, without spending tokens", { skip }, async () => {
+	const root = normalizeMagpieUrl(url!);
+	const models = mapMagpieCatalog(await fetchMagpieCatalog(root, key, AbortSignal.timeout(20_000)), root, key);
+	for (const api of new Set(models.map((m) => m.api))) {
+		const model = models.find((m) => m.api === api)!;
+		const path = api === "anthropic-messages" ? "/v1/messages" : api === "openai-responses" ? "/responses" : "/chat/completions";
+		const auth = api === "anthropic-messages" ? { "x-api-key": key } : { Authorization: `Bearer ${key}` };
+		// An empty body is rejected by magpie as a bad request; a 401/403 means the auth never got through.
+		const response = await fetch(`${model.baseUrl}${path}`, {
+			method: "POST",
+			headers: { "content-type": "application/json", ...auth, ...model.headers },
+			body: "{}",
+			signal: AbortSignal.timeout(20_000),
+		});
+		await response.body?.cancel();
+		console.log(`${api} (${model.id}): HTTP ${response.status}`);
+		assert.ok(response.status !== 401 && response.status !== 403, `${api} auth rejected with HTTP ${response.status}`);
+	}
+});
+
 test("remote magpie reports quotas the footer and /magpie-quota can show", { skip }, async () => {
 	const root = normalizeMagpieUrl(url!);
 	const quotas = await fetchMagpieQuotas(root, key, AbortSignal.timeout(20_000));
