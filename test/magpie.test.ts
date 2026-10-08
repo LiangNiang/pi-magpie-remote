@@ -249,3 +249,14 @@ test("model refresh uses the snapshot offline and after a network failure", asyn
 	const unavailable = await refreshMagpieModels({ ...context, allowNetwork: true });
 	assert.deepEqual(unavailable.map(({ id }) => id), ["cached-model"]);
 });
+
+test("sends the gateway key as a Bearer header to Anthropic-style models too", () => {
+	const entries = [
+		{ id: "zcode/GLM-5.3", native_endpoints: ["/v1/messages"] },
+		{ id: "codex/gpt-5.5", native_endpoints: ["/v1/responses"] },
+	];
+	const [glm, gpt] = mapMagpieCatalog(entries, "http://m:3425", "sk-magpie-1");
+	assert.deepEqual(glm!.headers, { Authorization: "Bearer sk-magpie-1" });
+	assert.equal(gpt!.headers, undefined);
+	assert.equal(mapMagpieCatalog(entries, "http://m:3425")[0]!.headers, undefined);
+});
