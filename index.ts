@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { loginMagpie, normalizeMagpieUrl, refreshMagpieModels, refreshMagpieToken, withGatewayBearer } from "./magpie.ts";
+import { loginMagpie, normalizeMagpieUrl, refreshMagpieModels, refreshMagpieToken } from "./magpie.ts";
 import {
 	fetchMagpieQuotas,
 	formatQuotaReport,
@@ -26,7 +26,6 @@ export default function (pi: ExtensionAPI): void {
 			login: loginMagpie,
 			refreshToken: refreshMagpieToken,
 			getApiKey: (credentials) => credentials.access,
-		modifyModels: (models, credentials) => withGatewayBearer(models, credentials.access),
 		},
 	});
 
