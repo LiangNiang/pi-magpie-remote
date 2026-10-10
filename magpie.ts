@@ -10,6 +10,8 @@ type MagpieChatModel = Extract<NonNullable<ProviderConfig["models"]>[number], { 
 type CatalogContext = Parameters<NonNullable<ProviderConfig["refreshModels"]>>[0];
 
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+/** How long a fetched catalog is reused before the next network refresh. */
+export const CATALOG_TTL_MS = 5 * 60 * 1000;
 const CLAUDE_FAMILY = /(?:^|[-_.])(?:claude|opus|sonnet|haiku)(?:[-_.]|$)/i;
 const CLAUDE_VERSION =
 	/(?:^|[^a-z0-9])(?:claude-)?(?:opus|sonnet|haiku)-(\d{1,2})(?:[-.](\d{1,2}))?(?:[^0-9]|$)|claude-(\d+)(?:[-.](\d))-(?:opus|sonnet|haiku)/i;
@@ -192,6 +194,23 @@ export async function refreshMagpieToken(
 	}
 }
 
+type StoredCatalog = NonNullable<Parameters<CatalogContext["publish"]>[0]["persist"]>["models"];
+
+/**
+ * Catalog persisted by an earlier network refresh. Without this, the model list can only ever
+ * change when the OAuth credential is rewritten, i.e. roughly once per token lifetime.
+ */
+function persistedCatalog(context: CatalogContext, root: string): MagpieChatModel[] | undefined {
+	const stored = context.stored;
+	if (!stored || !Array.isArray(stored.models) || stored.models.length === 0) return undefined;
+	const models = stored.models.filter((model) => typeof model?.id === "string" && model.id.length > 0);
+	if (models.length === 0) return undefined;
+	// A catalog persisted for another gateway must not shadow the current credential.
+	const baseUrl = (models[0] as { baseUrl?: unknown }).baseUrl;
+	if (baseUrl !== root && baseUrl !== `${root}/v1`) return undefined;
+	return models as unknown as MagpieChatModel[];
+}
+
 export async function refreshMagpieModels(context: CatalogContext): Promise<MagpieChatModel[]> {
 	const credential = context.credential?.type === "oauth" ? context.credential : undefined;
 	if (!credential || typeof credential.baseUrl !== "string" || !Array.isArray(credential.models)) return [];
@@ -201,11 +220,19 @@ export async function refreshMagpieModels(context: CatalogContext): Promise<Magp
 	} catch {
 		return [];
 	}
-	if (context.allowNetwork && !context.signal.aborted && typeof credential.access === "string") {
-		try {
-			const entries = await fetchMagpieCatalog(root, credential.access, context.signal);
-			return mapMagpieCatalog(entries, root);
-		} catch {}
+	const cached = persistedCatalog(context, root);
+	const fallback = () => cached ?? mapMagpieCatalog(credential.models, root);
+	if (!context.allowNetwork || context.signal.aborted || typeof credential.access !== "string") return fallback();
+	const checkedAt = context.stored?.checkedAt;
+	if (!context.force && cached && typeof checkedAt === "number" && Date.now() - checkedAt < CATALOG_TTL_MS) {
+		return cached;
 	}
-	return mapMagpieCatalog(credential.models, root);
+	try {
+		const entries = await fetchMagpieCatalog(root, credential.access, context.signal);
+		if (context.signal.aborted) return fallback();
+		const models = mapMagpieCatalog(entries, root);
+		await context.publish({ persist: { models: models as unknown as StoredCatalog, checkedAt: Date.now() } });
+		return models;
+	} catch {}
+	return fallback();
 }
