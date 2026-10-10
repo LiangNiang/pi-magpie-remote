@@ -4,6 +4,7 @@ import { once } from "node:events";
 import test from "node:test";
 import type { OAuthLoginCallbacks } from "@earendil-works/pi-ai/compat";
 import {
+	CATALOG_TTL_MS,
 	fetchMagpieCatalog,
 	loginMagpie,
 	mapMagpieCatalog,
@@ -248,4 +249,117 @@ test("model refresh uses the snapshot offline and after a network failure", asyn
 
 	const unavailable = await refreshMagpieModels({ ...context, allowNetwork: true });
 	assert.deepEqual(unavailable.map(({ id }) => id), ["cached-model"]);
+});
+
+type ModelRefreshContext = Parameters<typeof refreshMagpieModels>[0];
+
+function refreshContext(overrides: Record<string, unknown>): ModelRefreshContext {
+	return {
+		publish: async () => true,
+		allowNetwork: false,
+		signal: new AbortController().signal,
+		...overrides,
+	} as unknown as ModelRefreshContext;
+}
+
+function credentialFor(root: string, models: { id: string }[]) {
+	return {
+		type: "oauth",
+		access: "gateway-secret",
+		refresh: "gateway-secret",
+		expires: Date.now() + 60 * 60 * 1000,
+		baseUrl: root,
+		models,
+	};
+}
+
+function persistedModel(id: string, root: string) {
+	return { id, name: id, api: "openai-completions", baseUrl: `${root}/v1` };
+}
+
+test("model refresh prefers the persisted catalog over the credential snapshot", async () => {
+	const root = "http://127.0.0.1:3425";
+	const models = await refreshMagpieModels(
+		refreshContext({
+			credential: credentialFor(root, [{ id: "stale-model" }]),
+			stored: { models: [persistedModel("persisted-model", root)], checkedAt: Date.now() },
+		}),
+	);
+	assert.deepEqual(models.map(({ id }) => id), ["persisted-model"]);
+});
+
+test("model refresh ignores a catalog persisted for another gateway", async () => {
+	const models = await refreshMagpieModels(
+		refreshContext({
+			credential: credentialFor("http://new-host:3425", [{ id: "credential-model" }]),
+			stored: { models: [persistedModel("other-gateway", "http://old-host:3425")], checkedAt: Date.now() },
+		}),
+	);
+	assert.deepEqual(models.map(({ id }) => id), ["credential-model"]);
+});
+
+test("model refresh persists a freshly fetched catalog", async () => {
+	let requests = 0;
+	const { root, server } = await startCatalogServer((_request, response) => {
+		requests++;
+		response.writeHead(200, { "content-type": "application/json" });
+		response.end(JSON.stringify({ data: [{ id: "live-model" }] }));
+	});
+	const publications: { persist?: { models: { id: string }[]; checkedAt?: number } }[] = [];
+	try {
+		const models = await refreshMagpieModels(
+			refreshContext({
+				credential: credentialFor(root, [{ id: "cached-model" }]),
+				allowNetwork: true,
+				publish: async (publication: (typeof publications)[number]) => {
+					publications.push(publication);
+					return true;
+				},
+			}),
+		);
+		assert.deepEqual(models.map(({ id }) => id), ["live-model"]);
+		assert.equal(requests, 1);
+		const [publication] = publications;
+		assert.deepEqual(publication?.persist?.models.map(({ id }) => id), ["live-model"]);
+		assert.equal(typeof publication?.persist?.checkedAt, "number");
+	} finally {
+		await closeServer(server);
+	}
+});
+
+test("model refresh reuses a fresh persisted catalog until it ages out or force is set", async () => {
+	let requests = 0;
+	const { root, server } = await startCatalogServer((_request, response) => {
+		requests++;
+		response.writeHead(200, { "content-type": "application/json" });
+		response.end(JSON.stringify({ data: [{ id: "live-model" }] }));
+	});
+	const base = {
+		credential: credentialFor(root, [{ id: "cached-model" }]),
+		allowNetwork: true,
+	};
+	try {
+		const fresh = await refreshMagpieModels(
+			refreshContext({ ...base, stored: { models: [persistedModel("persisted-model", root)], checkedAt: Date.now() } }),
+		);
+		assert.deepEqual(fresh.map(({ id }) => id), ["persisted-model"]);
+		assert.equal(requests, 0);
+
+		const stale = await refreshMagpieModels(
+			refreshContext({
+				...base,
+				stored: { models: [persistedModel("persisted-model", root)], checkedAt: Date.now() - CATALOG_TTL_MS - 1000 },
+			}),
+		);
+		assert.deepEqual(stale.map(({ id }) => id), ["live-model"]);
+		assert.equal(requests, 1);
+
+		const forced = await refreshMagpieModels(
+			refreshContext({ ...base, force: true, stored: { models: [persistedModel("persisted-model", root)], checkedAt: Date.now() } }),
+		);
+		assert.deepEqual(forced.map(({ id }) => id), ["live-model"]);
+		assert.equal(requests, 2);
+	} finally {
+		await closeServer(server);
+	}
 });
