@@ -79,7 +79,12 @@ export default function (pi: ExtensionAPI): void {
 		ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg(color, formatQuotaStatus(first) + more));
 	}
 
-	pi.on("session_start", (_event, ctx) => void updateStatus(ctx));
+	pi.on("session_start", (_event, ctx) => {
+		// Match what opening /model does in the TUI: pick up a gateway change without leaving the session.
+		// refreshMagpieModels keeps its own five minute window, so this stays off the hot path.
+		void ctx.modelRegistry.refresh({ providers: [PROVIDER] }).catch(() => {});
+		void updateStatus(ctx);
+	});
 	pi.on("model_select", (_event, ctx) => void updateStatus(ctx));
 	pi.on("agent_end", (_event, ctx) => void updateStatus(ctx));
 
