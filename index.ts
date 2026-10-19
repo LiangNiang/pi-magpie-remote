@@ -9,6 +9,7 @@ import {
 	quotaProviderOf,
 	quotasForModel,
 } from "./quota.ts";
+import { registerMediaTools } from "./tools.ts";
 
 const PROVIDER = "magpie-remote";
 const STATUS_KEY = "magpie-quota";
@@ -28,6 +29,7 @@ export default function (pi: ExtensionAPI): void {
 			getApiKey: (credentials) => credentials.access,
 		},
 	});
+	registerMediaTools(pi, PROVIDER);
 
 	let cached: { at: number; quotas: MagpieQuota[] } | undefined;
 	let pending: Promise<MagpieQuota[]> | undefined;

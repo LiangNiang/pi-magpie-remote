@@ -1,11 +1,12 @@
 # pi-magpie-remote
 
-让 [Pi](https://pi.dev) 使用另一台机器上运行的 [Magpie](https://github.com/yetone/magpie) 网关：通过 `/login` 填入网关地址和 gateway key，Magpie 上的模型就会出现在 Pi 的 `/model` 中，底部状态栏还会显示当前模型对应供应商的额度。
+让 [Pi](https://pi.dev) 使用另一台机器上运行的 [Magpie](https://github.com/yetone/magpie) 网关：通过 `/login` 填入网关地址和 gateway key，Magpie 上的模型就会出现在 Pi 的 `/model` 中，底部状态栏还会显示当前模型对应供应商的额度，Agent 还能用网关上的模型生成图片和视频。
 
 - **远程模型**：注册 `magpie-remote` 供应商，模型以 `magpie-remote/<Magpie 模型 ID>` 显示，自动按模型原生接口选择 Responses / Messages / Chat Completions，并带上推理强度（thinking level）。
 - **自动刷新**：pi 启动和每次打开 `/model` 时重新拉取模型列表，远端不可达时使用本地快照。
 - **额度显示**：状态栏显示当前供应商的窗口用量或余额，`/magpie-quota` 查看全部额度。
-- **零依赖**：只有类型导入，运行时没有额外依赖。
+- **图片与视频**：`generate_image`、`generate_video` 两个工具用网关上的画图 / 视频模型出图、出片，文件存进当前项目。
+- **零依赖**：只使用 pi 自带的包和 Node 内置模块，没有额外的运行时依赖。
 
 ## 安装
 
@@ -75,6 +76,34 @@ pi -e ./pi-magpie-remote
 输出与 Magpie 机器上 `magpie quota` 一致：每个订阅、套餐各窗口的用量和重置时间（↻），以及各 key 的余额。数据来自网关的 `GET /v1/magpie/quotas`，使用 `/login` 时保存的地址和 gateway key，因此同样需要开启局域网共享。
 
 > 截图中的模型和额度为演示数据。
+
+## 生成图片和视频
+
+登录后，Agent 多出两个工具，复用 `/login` 保存的地址和 gateway key，不需要另配密钥。直接对 Agent 说要画什么或拍什么即可，例如「生成一张 16:9 的机房插画，存到 `assets/hero.png`」。
+
+| 工具 | 网关接口 | 默认保存位置 | 常用参数 |
+| --- | --- | --- | --- |
+| `generate_image` | `/v1/images/generations`；给出 `reference_images` 时走 `/v1/images/edits` | `generated-images/` | `prompt`、`path`、`size`（`1536x1024` 或 `16:9`）、`n`（1–4）、`quality`、`background`、`model`、`reference_images` |
+| `generate_video` | `POST /v1/videos`，轮询完成后下载 `/content` | `generated-videos/` | `prompt`、`path`、`seconds`（1–15）、`size`（`16:9` 或 `1280x720`）、`image`（首帧）、`reference_images`、`model` |
+
+- 参考图可以是本地路径、http(s) URL 或 data URL，本地文件会转成 data URL 上传。
+- `path` 可以是文件或目录。已有文件不会被覆盖，重名时自动加 `-2`、`-3`。扩展名按实际返回的格式决定：要求 `hero.png` 但模型回的是 JPEG 时，保存为 `hero.jpg` 并在结果里说明。
+- 只把文件路径返回给模型，不把图片或视频放进对话。
+- 单次出图最多等 10 分钟，视频最多等 10 分钟，都可以按 Esc 中止。
+- 请求带 `User-Agent: pi magpie-image/1`，Magpie 的用量页会把这些调用记在 `pi` 名下。
+
+不指定 `model` 时由 Magpie 选择（Settings → Images 中设置的模型）。也可以用环境变量设默认模型，工具参数 `model` 优先：
+
+- `PI_MAGPIE_IMAGE_MODEL`：例如 `codex/gpt-image-2`
+- `PI_MAGPIE_VIDEO_MODEL`：例如 `grok/grok-imagine-video`
+
+网关上有哪些模型可用：
+
+```sh
+curl -H "Authorization: Bearer <gateway key>" -H "X-Magpie-Drawers: 1" -H "X-Magpie-Videomakers: 1" https://<magpie>/v1/models
+```
+
+返回中 `"kind": "image"` 的是画图模型，`"kind": "video"` 的是视频模型。
 
 ## 开发
 
